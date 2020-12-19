@@ -16,6 +16,7 @@ type SpiderOnc struct {
 }
 
 func main() {
+
 	startUrl := "https://book.douban.com/subject/25863515/"
 
 	workerChan := make(chan *SpiderOnc, 10000)
@@ -35,7 +36,7 @@ func main() {
 
 	for workInfo := range workerChan {
 		a := rand.Intn(3)
-		time.Sleep(time.Duration(a) * time.Second)
+		time.Sleep(time.Duration(a+5) * time.Second)
 		book, likeUrls, err := spider.GetISBNInfo(workInfo.LikeUrl)
 		if err != nil {
 			panic(err)

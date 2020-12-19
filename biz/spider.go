@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/malisit/kolpa"
 )
 
 type Book struct {
@@ -33,12 +34,13 @@ var spiderHeaderMap = map[string]string{
 	"Connection":                "keep-alive",
 	"Cache-Control":             "max-age=0",
 	"Upgrade-Insecure-Requests": "1",
-	"User-Agent":                "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
-	"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-	"Referer":                   "https://movie.douban.com/top250",
+	//"User-Agent":                "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
+	"Accept":  "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+	"Referer": "https://movie.douban.com/top250",
 }
 
 func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
+
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -47,6 +49,8 @@ func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
 	for key, value := range spiderHeaderMap {
 		req.Header.Add(key, value)
 	}
+	c := kolpa.C()
+	req.Header.Add("User-Agent", c.UserAgent())
 
 	resp, err := client.Do(req)
 	if err != nil {
