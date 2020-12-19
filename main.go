@@ -17,6 +17,7 @@ type SpiderOnc struct {
 
 func main() {
 
+	startTime := time.Now()
 	startUrl := "https://book.douban.com/subject/25863515/"
 
 	workerChan := make(chan *SpiderOnc, 10000)
@@ -34,7 +35,9 @@ func main() {
 		}
 	}
 
+	i := 0
 	for workInfo := range workerChan {
+		i++
 		a := rand.Intn(3)
 		time.Sleep(time.Duration(a+5) * time.Second)
 		book, likeUrls, err := spider.GetISBNInfo(workInfo.LikeUrl)
@@ -43,7 +46,7 @@ func main() {
 		}
 		if book != nil {
 			fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ")
-			fmt.Println("\n")
+			fmt.Println(fmt.Sprintf("第%d本 耗时 %d 秒", i, time.Now().Unix()-startTime.Unix()))
 			log.Println(workInfo.Title, "类似的书 ：", book.Title, " 详细信息：", book)
 		}
 		if len(likeUrls) > 0 {
