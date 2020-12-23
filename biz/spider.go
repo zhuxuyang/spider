@@ -1,60 +1,50 @@
-package spider
+package biz
 
 import (
-	"net/http"
+	"fmt"
+	"log"
 	"strings"
+	"time"
+
+	"zhuxuyang/spider/config"
+	"zhuxuyang/spider/model"
+	"zhuxuyang/spider/resource"
+	"zhuxuyang/spider/utils"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/malisit/kolpa"
 )
 
-type Book struct {
-	Author        string // 作者
-	Press         string // 出版社
-	Producer      string //出品方
-	translator    string // 译者
-	PubDate       string // 出版年
-	Pages         string // 页数
-	Price         string // 定价
-	Binding       string // 装帧
-	Series        string /// 丛书
-	ISBN          string
-	BookNum       string   // 统一书号,几十年前国内出版的书没有ISBN号，当时只有国家统一书号
-	Title         string   // 书名
-	OriginalTitle string   // 原作名
-	Cover         string   // 封面
-	Summary       string   // 内容简介
-	Tags          []string // 标签
-	Score         string   // 评分
-	Votes         string   // 评价人数
+type SpiderOnc struct {
+	ISBN    string
+	Title   string
+	LikeUrl string
 }
 
-var spiderHeaderMap = map[string]string{
-	"Host":                      "movie.douban.com",
-	"Connection":                "keep-alive",
-	"Cache-Control":             "max-age=0",
-	"Upgrade-Insecure-Requests": "1",
-	//"User-Agent":                "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
-	"Accept":  "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-	"Referer": "https://movie.douban.com/top250",
-}
+func GetISBNInfo(url string) (book *model.Book, likeUrlList []string, err error) {
+	client, err := utils.GetHttpProxyClient()
+	if err != nil { //此时没有代理，等着
+		log.Println("GetISBNInfo sleep 代理还没准备好，2秒后再试")
+		time.Sleep(2 * time.Second)
+		return GetISBNInfo(url)
+	}
 
-func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
-
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := utils.GetRequest("GET", url)
 	if err != nil {
-		return nil, nil, err
+		log.Println("GetISBNInfo  GetRequest  err", err.Error())
+		return GetISBNInfo(url)
 	}
-	for key, value := range spiderHeaderMap {
-		req.Header.Add(key, value)
-	}
-	c := kolpa.C()
-	req.Header.Add("User-Agent", c.UserAgent())
-
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		log.Println(fmt.Sprintf("client.Do(req) err %v", err))
+		time.Sleep(1 * time.Second)
+		return GetISBNInfo(url)
+		//return nil, nil, err
+	}
+	if resp == nil || resp.Body == nil {
+		log.Println(fmt.Sprintf("resp==nil||resp.Body==nil %v", resp))
+		time.Sleep(1 * time.Second)
+		return GetISBNInfo(url)
+		//return nil, nil, err
 	}
 	defer resp.Body.Close()
 	dom, err := goquery.NewDocumentFromReader(resp.Body)
@@ -66,7 +56,7 @@ func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
 	title, _ := titleNode.Attr("title")
 	cover, _ := titleNode.Attr("href")
 
-	book = &Book{
+	book = &model.Book{
 		Title: title,
 		Cover: cover,
 	}
@@ -111,7 +101,7 @@ func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
 		case "出品方":
 			book.Producer = v
 		case "译者":
-			book.translator = v
+			book.Translator = v
 		case "出版年":
 			book.PubDate = v
 		case "页数":
@@ -136,12 +126,13 @@ func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
 	book.Summary = introNode.Text()
 	tagNode := dom.Find("#db-tags-section > div[class=indent]")
 	tagList := strings.Split(strings.ReplaceAll(tagNode.Text(), " ", ""), "\n")
-	book.Tags = make([]string, 0)
+	tagList = make([]string, 0)
 	for _, v := range tagList {
 		if v != "" {
-			book.Tags = append(book.Tags, strings.TrimSpace(v))
+			tagList = append(tagList, strings.TrimSpace(v))
 		}
 	}
+	book.Tags = strings.Join(tagList, ",")
 	// 评分区域
 	scoreNode := dom.Find("#interest_sectl")
 	book.Score = scoreNode.Find("strong[property=\"v:average\"]").Text()
@@ -161,4 +152,32 @@ func GetISBNInfo(url string) (book *Book, likeUrlList []string, err error) {
 		likeUrlList = append(likeUrlList, k)
 	}
 	return book, likeUrlList, err
+}
+
+func DouBanSpiderStart(startUrl string) {
+	//startUrl := "https://book.douban.com/subject/25863515/"
+
+	//startUrl = "https://book.douban.com/subject/10546125/"
+	workerChan := make(chan *SpiderOnc, 10000)
+
+	workerChan <- &SpiderOnc{ISBN: "", Title: "", LikeUrl: startUrl}
+
+	i := 0
+	for workInfo := range workerChan {
+		i++
+		config.SpiderSleep()
+		book, likeUrls, err := GetISBNInfo(workInfo.LikeUrl)
+		if err != nil {
+			workerChan <- workInfo
+			log.Println(fmt.Sprintf("GetISBNInfo err requeue %v", err))
+		}
+		if book != nil {
+			resource.Logger.Info(fmt.Sprintf("%s 类似的书 ：%s  详细信息：%v", workInfo.Title, book.Title, book))
+		}
+		if len(likeUrls) > 0 {
+			for _, v := range likeUrls {
+				workerChan <- &SpiderOnc{ISBN: book.ISBN, Title: book.Title, LikeUrl: v}
+			}
+		}
+	}
 }

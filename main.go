@@ -1,58 +1,22 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"math/rand"
-	"time"
-
 	"zhuxuyang/spider/biz"
+	"zhuxuyang/spider/resource"
 )
-
-type SpiderOnc struct {
-	ISBN    string
-	Title   string
-	LikeUrl string
-}
 
 func main() {
 
-	startTime := time.Now()
-	startUrl := "https://book.douban.com/subject/25863515/"
+	//ip_proxy.InitProxy()
+	//time.Sleep(5 * time.Second)
+	//log.Println(ip_proxy.GetNextProxyIp())
+	//log.Println(biz.GetHttpClient())
+	resource.InitLogger()
+	resource.Logger.Info("开始")
+	biz.DouBanSpiderStart("https://book.douban.com/subject/3794471")
 
-	workerChan := make(chan *SpiderOnc, 10000)
-
-	baseBook, likeUrls, err := spider.GetISBNInfo(startUrl)
-	if err != nil {
-		panic(err)
-	}
-	if baseBook != nil {
-		log.Println(baseBook)
-	}
-	if len(likeUrls) > 0 {
-		for _, v := range likeUrls {
-			workerChan <- &SpiderOnc{ISBN: baseBook.ISBN, Title: baseBook.Title, LikeUrl: v}
-		}
-	}
-
-	i := 0
-	for workInfo := range workerChan {
-		i++
-		a := rand.Intn(3)
-		time.Sleep(time.Duration(a+5) * time.Second)
-		book, likeUrls, err := spider.GetISBNInfo(workInfo.LikeUrl)
-		if err != nil {
-			panic(err)
-		}
-		if book != nil {
-			fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ")
-			fmt.Println(fmt.Sprintf("第%d本 耗时 %d 秒", i, time.Now().Unix()-startTime.Unix()))
-			log.Println(workInfo.Title, "类似的书 ：", book.Title, " 详细信息：", book)
-		}
-		if len(likeUrls) > 0 {
-			for _, v := range likeUrls {
-				workerChan <- &SpiderOnc{ISBN: book.ISBN, Title: book.Title, LikeUrl: v}
-			}
-		}
-	}
+	//biz.GetAllTypes()
+	//utils.ClientTestFunc("https://book.douban.com/subject/10546125")
 }
+
+//2020/12/21 19:17:27 <nil> [] Get "https://book.douban.com/subject/10546125": read tcp 192.168.29.104:54106->188.130.255.5:80: read: connection reset by peer
