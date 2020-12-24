@@ -6,6 +6,8 @@ type SourceLost struct {
 	ID        int64
 	SourceID  int64
 	BindISBN  string
+	ErrIp     string
+	Err       string
 	CreatedAt *time.Time
 }
 

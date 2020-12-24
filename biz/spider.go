@@ -162,10 +162,11 @@ func DouBanSpiderStart(sourceID int64) {
 		startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", workInfo.SourceID)
 		book, likeUrls, err := GetISBNInfo(startUrl)
 		if err != nil || book == nil || book.Title == "" {
-			resource.Logger.Error(fmt.Sprintf("GetISBNInfo failed ip:%s  err:%v", ip_proxy.GetCurrentConstIP(), workInfo))
 			resource.GetDB().Save(&model.SourceLost{
 				SourceID: workInfo.SourceID,
 				BindISBN: workInfo.BindISBN,
+				ErrIp:    ip_proxy.GetCurrentConstIP(),
+				Err:      fmt.Sprintf("%v", err),
 			})
 		} else {
 			book.BindIsbn = workInfo.BindISBN
