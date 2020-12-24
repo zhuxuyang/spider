@@ -3,10 +3,11 @@ package biz
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
-	"time"
 
 	"zhuxuyang/spider/config"
+	"zhuxuyang/spider/ip_proxy"
 	"zhuxuyang/spider/model"
 	"zhuxuyang/spider/resource"
 	"zhuxuyang/spider/utils"
@@ -15,36 +16,31 @@ import (
 )
 
 type SpiderOnc struct {
-	ISBN    string
-	Title   string
-	LikeUrl string
+	BindISBN string // 相似的书
+	Title    string
+	LikeUrl  string
 }
 
 func GetISBNInfo(url string) (book *model.Book, likeUrlList []string, err error) {
 	client, err := utils.GetHttpProxyClient()
 	if err != nil { //此时没有代理，等着
-		log.Println("GetISBNInfo sleep 代理还没准备好，2秒后再试")
-		time.Sleep(2 * time.Second)
-		return GetISBNInfo(url)
+		resource.Logger.Error(fmt.Sprintf("utils.GetHttpProxyClient() %s %v", ip_proxy.GetCurrentConstIP(), err))
+		return nil, nil, err
 	}
 
 	req, err := utils.GetRequest("GET", url)
 	if err != nil {
-		log.Println("GetISBNInfo  GetRequest  err", err.Error())
-		return GetISBNInfo(url)
+		resource.Logger.Error(fmt.Sprintf("utils.GetRequest %s %v", url, err))
+		return nil, nil, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println(fmt.Sprintf("client.Do(req) err %v", err))
-		time.Sleep(1 * time.Second)
-		return GetISBNInfo(url)
-		//return nil, nil, err
+		resource.Logger.Error(fmt.Sprintf(" client.Do(req)  %v %v", req, err))
+		return nil, nil, err
 	}
 	if resp == nil || resp.Body == nil {
-		log.Println(fmt.Sprintf("resp==nil||resp.Body==nil %v", resp))
-		time.Sleep(1 * time.Second)
-		return GetISBNInfo(url)
-		//return nil, nil, err
+		resource.Logger.Error(fmt.Sprintf("resp==nil||resp.Body==nil %v", resp))
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	dom, err := goquery.NewDocumentFromReader(resp.Body)
@@ -56,9 +52,11 @@ func GetISBNInfo(url string) (book *model.Book, likeUrlList []string, err error)
 	title, _ := titleNode.Attr("title")
 	cover, _ := titleNode.Attr("href")
 
+	sourceID, _ := ParseSubjectID(url)
 	book = &model.Book{
-		Title: title,
-		Cover: cover,
+		Title:    title,
+		Cover:    cover,
+		SourceID: sourceID,
 	}
 
 	infoNode := dom.Find("#info")
@@ -154,30 +152,43 @@ func GetISBNInfo(url string) (book *model.Book, likeUrlList []string, err error)
 	return book, likeUrlList, err
 }
 
-func DouBanSpiderStart(startUrl string) {
+func DouBanSpiderStart(sourceID int64) {
 	//startUrl := "https://book.douban.com/subject/25863515/"
-
 	//startUrl = "https://book.douban.com/subject/10546125/"
 	workerChan := make(chan *SpiderOnc, 10000)
-
-	workerChan <- &SpiderOnc{ISBN: "", Title: "", LikeUrl: startUrl}
+	startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", sourceID)
+	workerChan <- &SpiderOnc{BindISBN: "", Title: "", LikeUrl: startUrl}
 
 	i := 0
 	for workInfo := range workerChan {
 		i++
 		config.SpiderSleep()
 		book, likeUrls, err := GetISBNInfo(workInfo.LikeUrl)
-		if err != nil {
-			workerChan <- workInfo
+		if err != nil || book == nil || book.Title == "" {
 			log.Println(fmt.Sprintf("GetISBNInfo err requeue %v", err))
-		}
-		if book != nil {
-			resource.Logger.Info(fmt.Sprintf("%s 类似的书 ：%s  详细信息：%v", workInfo.Title, book.Title, book))
+			resource.Logger.Error(fmt.Sprintf("GetISBNInfo failed %v", workInfo))
+			sourceID, _ := ParseSubjectID(workInfo.LikeUrl)
+			resource.GetDB().Save(&model.SourceLost{
+				SourceID: sourceID,
+				BindISBN: workInfo.BindISBN,
+			})
+		} else {
+			model.SaveBook(book)
 		}
 		if len(likeUrls) > 0 {
 			for _, v := range likeUrls {
-				workerChan <- &SpiderOnc{ISBN: book.ISBN, Title: book.Title, LikeUrl: v}
+				sourceID, _ := ParseSubjectID(workInfo.LikeUrl)
+				if model.BookExisted(sourceID) {
+					continue
+				}
+				workerChan <- &SpiderOnc{BindISBN: book.ISBN, Title: book.Title, LikeUrl: v}
 			}
 		}
 	}
+}
+
+func ParseSubjectID(url string) (int64, error) {
+	url = strings.ReplaceAll(url, "https://book.douban.com/subject/", "")
+	url = strings.ReplaceAll(url, "/", "")
+	return strconv.ParseInt(url, 10, 64)
 }

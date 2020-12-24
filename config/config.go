@@ -1,9 +1,25 @@
 package config
 
 import (
+	"flag"
+	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/spf13/viper"
 )
+
+var configFilePath = "./config/config.yaml"
+
+func InitViper() {
+	configFile := flag.String("conf", configFilePath, "path of config file")
+	viper.SetConfigFile(*configFile)
+	err := viper.ReadInConfig()
+	if err != nil {
+		errStr := fmt.Sprintf("viper read config is failed, err is %v configFile is %v ", err, configFile)
+		panic(errStr)
+	}
+}
 
 const DouBanSpiderSleepTimeMultiple = 2 // 爬虫sleep函数的参数
 func SpiderSleep() {

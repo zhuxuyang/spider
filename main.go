@@ -1,20 +1,28 @@
 package main
 
 import (
+	"log"
+
 	"zhuxuyang/spider/biz"
+	"zhuxuyang/spider/config"
+	"zhuxuyang/spider/model"
 	"zhuxuyang/spider/resource"
+
+	"github.com/spf13/viper"
 )
 
 func main() {
-
-	//ip_proxy.InitProxy()
-	//time.Sleep(5 * time.Second)
-	//log.Println(ip_proxy.GetNextProxyIp())
-	//log.Println(biz.GetHttpClient())
+	config.InitViper()
 	resource.InitLogger()
 	resource.Logger.Info("开始")
-	biz.DouBanSpiderStart("https://book.douban.com/subject/3794471")
+	dbConf := viper.GetStringMapString("database")
+	resource.InitDB(dbConf["user"], dbConf["password"], dbConf["host"], dbConf["port"], dbConf["name"])
+	resource.GetDB().LogMode(true)
+	log.Println(resource.GetDB().AutoMigrate(&model.Book{}))
+	log.Println(resource.GetDB().AutoMigrate(&model.SourceLost{}))
 
+	biz.DouBanSpiderStart(3794471)
+	//"https://book.douban.com/subject/3794471"
 	//biz.GetAllTypes()
 	//utils.ClientTestFunc("https://book.douban.com/subject/10546125")
 }

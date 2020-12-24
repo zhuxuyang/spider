@@ -1,5 +1,12 @@
 package model
 
+import (
+	"fmt"
+	"time"
+
+	"zhuxuyang/spider/resource"
+)
+
 type Book struct {
 	ID            int64
 	ISBN          string
@@ -20,4 +27,26 @@ type Book struct {
 	Tags          string // 标签
 	Score         string // 评分
 	Votes         string // 评价人数
+	SourceID      int64
+	CreatedAt     *time.Time
+}
+
+func (m *Book) TableName() string {
+	return "book"
+}
+
+func SaveBook(book *Book) {
+	err := resource.GetDB().Save(book).Error
+	if err != nil {
+		resource.Logger.Error(fmt.Sprintf("save book err %v %v", err, book))
+	}
+}
+
+func BookExisted(sourceID int64) bool {
+	id := make([]int64, 0)
+	err := resource.GetDB().Model(&Book{}).Where("source_id=?", sourceID).Pluck("id", &id).Error
+	if err != nil {
+		resource.Logger.Error(fmt.Sprintf("BookExisted err %v ", err))
+	}
+	return len(id) > 0
 }
