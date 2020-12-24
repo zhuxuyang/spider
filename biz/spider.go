@@ -2,7 +2,6 @@ package biz
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -163,13 +162,13 @@ func DouBanSpiderStart(sourceID int64) {
 		startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", workInfo.SourceID)
 		book, likeUrls, err := GetISBNInfo(startUrl)
 		if err != nil || book == nil || book.Title == "" {
-			log.Println(fmt.Sprintf("GetISBNInfo err requeue %v", err))
-			resource.Logger.Error(fmt.Sprintf("GetISBNInfo failed %v", workInfo))
+			resource.Logger.Error(fmt.Sprintf("GetISBNInfo failed ip:%s  err:%v", ip_proxy.GetCurrentConstIP(), workInfo))
 			resource.GetDB().Save(&model.SourceLost{
 				SourceID: workInfo.SourceID,
 				BindISBN: workInfo.BindISBN,
 			})
 		} else {
+			book.BindIsbn = workInfo.BindISBN
 			model.SaveBook(book)
 		}
 		if len(likeUrls) > 0 {

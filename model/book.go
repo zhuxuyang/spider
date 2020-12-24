@@ -28,6 +28,7 @@ type Book struct {
 	Score         string // 评分
 	Votes         string // 评价人数
 	SourceID      int64
+	BindIsbn      string
 	CreatedAt     *time.Time
 }
 
