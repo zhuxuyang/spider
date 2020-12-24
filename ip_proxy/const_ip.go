@@ -17,6 +17,7 @@ var startTime = int64(0)
 
 func GetNextConstIP() string {
 	if len(constIPList) == 0 || time.Now().Unix()-startTime > 300 {
+		startTime = time.Now().Unix()
 		constIPList = model.GetProxyList()
 	}
 

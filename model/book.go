@@ -37,6 +37,11 @@ func (m *Book) TableName() string {
 }
 
 func SaveBook(book *Book) {
+	dbWork := FindWork(book.SourceID)
+	if dbWork.ID > 0 {
+		DeleteWork(dbWork)
+	}
+
 	id := make([]int64, 0)
 	err := resource.GetDB().Model(&Book{}).Where("isbn=?", book.ISBN).Pluck("id", &id).Error
 	if err != nil {

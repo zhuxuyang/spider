@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"zhuxuyang/spider/config"
 	"zhuxuyang/spider/ip_proxy"
 	"zhuxuyang/spider/model"
 	"zhuxuyang/spider/resource"
@@ -151,36 +150,37 @@ func GetISBNInfo(url string) (book *model.Book, likeUrlList []string, err error)
 	return book, likeUrlList, err
 }
 
-func DouBanSpiderStart(sourceID int64) {
-	//startUrl := "https://book.douban.com/subject/25863515/"
-	//startUrl = "https://book.douban.com/subject/10546125/"
-	workerChan := make(chan *SpiderOnc, 10000)
-	workerChan <- &SpiderOnc{BindISBN: "", Title: "", SourceID: sourceID}
-
-	for workInfo := range workerChan {
-		config.SpiderSleep()
-		startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", workInfo.SourceID)
-		book, likeUrls, err := GetISBNInfo(startUrl)
-		if err != nil || book == nil || book.Title == "" {
-			resource.GetDB().Save(&model.SourceLost{
-				SourceID: workInfo.SourceID,
-				BindISBN: workInfo.BindISBN,
-				ErrIp:    ip_proxy.GetCurrentConstIP(),
-				Err:      fmt.Sprintf("%v", err),
-			})
-		} else {
-			book.BindIsbn = workInfo.BindISBN
-			model.SaveBook(book)
+func DealOneWork(sourceID int64, bindISBN string) {
+	defer func() {
+		if r := recover(); r != nil {
+			resource.Logger.Error(fmt.Sprintf("DealOneWork defer panic %v", r))
 		}
-		if len(likeUrls) > 0 {
-			for _, v := range likeUrls {
-				sid, err := ParseSubjectID(v)
-				if err != nil {
-					resource.Logger.Error(fmt.Sprintf("ParseSubjectID err %v %v", err, v))
-				}
-				if !model.BookExisted(sid) {
-					workerChan <- &SpiderOnc{BindISBN: book.ISBN, Title: book.Title, SourceID: sid}
-				}
+	}()
+
+	startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", sourceID)
+	book, likeUrls, err := GetISBNInfo(startUrl)
+	if err != nil || book == nil || book.Title == "" {
+		resource.GetDB().Save(&model.SourceLost{
+			SourceID: sourceID,
+			BindISBN: bindISBN,
+			ErrIp:    ip_proxy.GetCurrentConstIP(),
+			Err:      fmt.Sprintf("%v", err),
+		})
+	} else {
+		book.BindIsbn = bindISBN
+		model.SaveBook(book)
+	}
+	if len(likeUrls) > 0 {
+		for _, v := range likeUrls {
+			sid, err := ParseSubjectID(v)
+			if err != nil {
+				resource.Logger.Error(fmt.Sprintf("ParseSubjectID err %v %v", err, v))
+			}
+			if !model.BookExisted(sid) {
+				model.SaveWork(&model.Work{
+					SourceID: sid,
+					BindISBN: book.ISBN,
+				})
 			}
 		}
 	}
