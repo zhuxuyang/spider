@@ -21,7 +21,7 @@ func InitViper() {
 	}
 }
 
-const DouBanSpiderSleepTimeMultiple = 2 // 爬虫sleep函数的参数
+const DouBanSpiderSleepTimeMultiple = 6 // 爬虫sleep函数的参数
 func SpiderSleep() {
 	a := rand.Intn(3)
 	time.Sleep(time.Duration(a+5) / DouBanSpiderSleepTimeMultiple * time.Second)

@@ -18,7 +18,7 @@ import (
 type SpiderOnc struct {
 	BindISBN string // 相似的书
 	Title    string
-	LikeUrl  string
+	SourceID int64
 }
 
 func GetISBNInfo(url string) (book *model.Book, likeUrlList []string, err error) {
@@ -156,20 +156,17 @@ func DouBanSpiderStart(sourceID int64) {
 	//startUrl := "https://book.douban.com/subject/25863515/"
 	//startUrl = "https://book.douban.com/subject/10546125/"
 	workerChan := make(chan *SpiderOnc, 10000)
-	startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", sourceID)
-	workerChan <- &SpiderOnc{BindISBN: "", Title: "", LikeUrl: startUrl}
+	workerChan <- &SpiderOnc{BindISBN: "", Title: "", SourceID: sourceID}
 
-	i := 0
 	for workInfo := range workerChan {
-		i++
 		config.SpiderSleep()
-		book, likeUrls, err := GetISBNInfo(workInfo.LikeUrl)
+		startUrl := fmt.Sprintf("https://book.douban.com/subject/%d/", workInfo.SourceID)
+		book, likeUrls, err := GetISBNInfo(startUrl)
 		if err != nil || book == nil || book.Title == "" {
 			log.Println(fmt.Sprintf("GetISBNInfo err requeue %v", err))
 			resource.Logger.Error(fmt.Sprintf("GetISBNInfo failed %v", workInfo))
-			sourceID, _ := ParseSubjectID(workInfo.LikeUrl)
 			resource.GetDB().Save(&model.SourceLost{
-				SourceID: sourceID,
+				SourceID: workInfo.SourceID,
 				BindISBN: workInfo.BindISBN,
 			})
 		} else {
@@ -177,11 +174,13 @@ func DouBanSpiderStart(sourceID int64) {
 		}
 		if len(likeUrls) > 0 {
 			for _, v := range likeUrls {
-				sourceID, _ := ParseSubjectID(workInfo.LikeUrl)
-				if model.BookExisted(sourceID) {
-					continue
+				sid, err := ParseSubjectID(v)
+				if err != nil {
+					resource.Logger.Error(fmt.Sprintf("ParseSubjectID err %v %v", err, v))
 				}
-				workerChan <- &SpiderOnc{BindISBN: book.ISBN, Title: book.Title, LikeUrl: v}
+				if !model.BookExisted(sid) {
+					workerChan <- &SpiderOnc{BindISBN: book.ISBN, Title: book.Title, SourceID: sid}
+				}
 			}
 		}
 	}

@@ -36,9 +36,16 @@ func (m *Book) TableName() string {
 }
 
 func SaveBook(book *Book) {
-	err := resource.GetDB().Save(book).Error
+	id := make([]int64, 0)
+	err := resource.GetDB().Model(&Book{}).Where("isbn=?", book.ISBN).Pluck("id", &id).Error
 	if err != nil {
-		resource.Logger.Error(fmt.Sprintf("save book err %v %v", err, book))
+		resource.Logger.Error(fmt.Sprintf("BookExisted err %v ", err))
+	}
+	if len(id) == 0 {
+		err = resource.GetDB().Save(book).Error
+		if err != nil {
+			resource.Logger.Error(fmt.Sprintf("save book err %v %v", err, book))
+		}
 	}
 }
 

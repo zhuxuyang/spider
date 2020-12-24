@@ -1,11 +1,8 @@
 package main
 
 import (
-	"log"
-
 	"zhuxuyang/spider/biz"
 	"zhuxuyang/spider/config"
-	"zhuxuyang/spider/model"
 	"zhuxuyang/spider/resource"
 
 	"github.com/spf13/viper"
@@ -18,10 +15,8 @@ func main() {
 	dbConf := viper.GetStringMapString("database")
 	resource.InitDB(dbConf["user"], dbConf["password"], dbConf["host"], dbConf["port"], dbConf["name"])
 	resource.GetDB().LogMode(true)
-	log.Println(resource.GetDB().AutoMigrate(&model.Book{}))
-	log.Println(resource.GetDB().AutoMigrate(&model.SourceLost{}))
 
-	biz.DouBanSpiderStart(3794471)
+	biz.DouBanSpiderStart(viper.GetInt64("startSubjectID"))
 	//"https://book.douban.com/subject/3794471"
 	//biz.GetAllTypes()
 	//utils.ClientTestFunc("https://book.douban.com/subject/10546125")

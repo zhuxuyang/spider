@@ -1,7 +1,9 @@
 package resource
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	go_logger "github.com/phachon/go-logger"
 	"github.com/spf13/viper"
@@ -17,14 +19,15 @@ func InitLogger() {
 	Logger = go_logger.NewLogger()
 	logFormat := "[%timestamp_format%] [%level_string%] %function%:%line% %body%"
 	logDir := viper.GetString("logDir")
+	current := time.Now()
 	// file adapter config
 	fileConfig := &go_logger.FileConfig{
 		//Filename: "./reviewer-test.log", // The file name of the logger output, does not exist automatically
 		// If you want to separate separate logs into files, configure LevelFileName parameters.
 		LevelFileName: map[int]string{
-			Logger.LoggerLevel("error"): "./spider.log", // The error level log is written to the error.log file.
-			Logger.LoggerLevel("info"):  "./spider.log", // The info level log is written to the info.log file.
-			Logger.LoggerLevel("debug"): "./spider.log", // The debug level log is written to the debug.log file.
+			Logger.LoggerLevel("error"): fmt.Sprintf("./spiderErr%d.log", current.Unix()),   // The error level log is written to the error.log file.
+			Logger.LoggerLevel("info"):  fmt.Sprintf("./spiderInfo%d.log", current.Unix()),  // The info level log is written to the info.log file.
+			Logger.LoggerLevel("debug"): fmt.Sprintf("./spiderDebug%d.log", current.Unix()), // The debug level log is written to the debug.log file.
 		},
 		MaxSize:    0,         // File maximum (KB), default 0 is not limited
 		MaxLine:    0,         // The maximum number of lines in the file, the default 0 is not limited
